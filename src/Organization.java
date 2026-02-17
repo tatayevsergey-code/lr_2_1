@@ -1,6 +1,12 @@
 import java.time.LocalDate;
+import java.util.Arrays;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class Organization {
+
+    private static final AtomicLong ID_COUNTER = new AtomicLong(1);
+
     private long id;
     private String name;
     private Coordinates coordinates;
@@ -57,19 +63,74 @@ public class Organization {
         this.officialAddress = officialAddress;
     }
 
-    public Organization(String name, Coordinates coordinates, LocalDate creationDate, float annualTurnover, OrganizationType type, Address officialAddress) {
-        this.name = name;
-        this.coordinates = coordinates;
-        this.creationDate = creationDate;
-        this.annualTurnover = annualTurnover;
-        this.type = type;
-        this.officialAddress = officialAddress;
-    }
+    public Organization(String name, String coordinates, float annualTurnover, String type, String officialAddress) {
+        // === Валидация входных данных ===
+        if (name == null || name.trim().isEmpty()) {
+            throw new IllegalArgumentException("Название организации не может быть пустым");
+        }
+        if (coordinates == null) {
+            throw new IllegalArgumentException("Координаты не могут быть null");
+        }
+        if (annualTurnover <= 0) {
+            throw new IllegalArgumentException("Годовой оборот должен быть положительным числом");
+        }
+        if (type == null) {
+            throw new IllegalArgumentException("Тип организации не может быть null");
+        }
+        if (officialAddress == null) {
+            throw new IllegalArgumentException("Официальный адрес не может быть null");
+        }
 
-    public Organization() {
+        // === Генерация служебных полей ===
+        this.id = ID_COUNTER.getAndIncrement(); // Уникальный ID
+        this.creationDate = LocalDate.now();    // Текущая дата создания
+        //название организации
+        this.name = name;
+        //координаты
+        String[] xy = coordinates.split(" ");
+        long x = Long.parseLong(xy[0]);
+        long y = Long.parseLong(xy[0]);
+        this.coordinates = new Coordinates(x, y);
+        //годовой оборот
+        this.annualTurnover = annualTurnover;
+
+        //Тип организации
+        // Нормализация типа: удаляем всё кроме букв и пробелов, заменяем множественные пробелы на один,
+        // приводим к формату enum (UPPER_SNAKE_CASE)
+        String normalized_type = type
+                .replaceAll("[^a-zA-Z\\s]", "")          // Удаляем знаки препинания, цифры, подчёркивания
+                .replaceAll("\\s+", "_")                 // Пробелы → подчёркивания
+                .toUpperCase();                          // В верхний регистр
+        try {
+            this.type = OrganizationType.valueOf(normalized_type);
+        } catch (IllegalArgumentException e) {
+            System.out.println("❌ Некорректный тип: '" + type + "'");
+            System.out.println("✅ Доступные варианты: " +
+                    Arrays.stream(OrganizationType.values())
+                            .map(OrganizationType::getReadableName)
+                            .reduce((a, b) -> a + ", " + b)
+                            .orElse(""));
+        }
+
+        //Адрес
+        String[] adr = coordinates.split(",");
+        this.officialAddress = new Address(adr[0], adr[1]);
     }
 
     public long getId() {
         return id;
+    }
+
+    @Override
+    public String toString() {
+        return "Organization{" +
+                "id=" + id +
+                ", name='" + name + '\'' +
+                ", coordinates=" + coordinates +
+                ", creationDate=" + creationDate +
+                ", annualTurnover=" + annualTurnover +
+                ", type=" + type +
+                ", officialAddress=" + officialAddress +
+                '}';
     }
 }

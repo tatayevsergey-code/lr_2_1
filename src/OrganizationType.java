@@ -1,9 +1,9 @@
 import java.util.Arrays;
 
 public enum OrganizationType {
-    TRUST("Trust"),
-    PRIVATE_LIMITED_COMPANY("Private Limited Company"),
-    OPEN_JOINT_STOCK_COMPANY("Open Joint Stock Company");
+    TRUST("Траст"),
+    PRIVATE_LIMITED_COMPANY("ООО"),
+    OPEN_JOINT_STOCK_COMPANY("АО");
 
     private final String readableName;
 
@@ -13,6 +13,20 @@ public enum OrganizationType {
 
     public String getReadableName() {
         return readableName;
+    }
+
+    // 🔑 Ключевой метод: поиск по человекочитаемому имени
+    public static OrganizationType fromReadableName(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            throw new IllegalArgumentException("Имя типа организации не может быть пустым");
+        }
+        String normalized = name.trim().replaceAll("\\s+", " "); // убрать лишние пробелы
+        for (OrganizationType type : values()) {
+            if (type.readableName.equalsIgnoreCase(normalized)) {
+                return type;
+            }
+        }
+        throw new IllegalArgumentException("Неизвестный тип: '" + name + "'");
     }
 
     // Статический метод для отладки/логгирования

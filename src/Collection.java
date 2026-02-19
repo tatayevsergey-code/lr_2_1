@@ -1,23 +1,54 @@
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.PriorityQueue;
-import java.util.Scanner;
+import java.util.*;
 
 public class Collection {
-    public static void main(String[] args) {
+    static PriorityQueue<Organization> queue;
 
-        // Сортировка по годовому обороту (от меньшего к большему)
-        PriorityQueue<Organization> queue = new PriorityQueue<>(
+    public static void main(String[] args) throws Exception {
+
+        queue = new PriorityQueue<>(
                 Comparator.comparingLong(Organization::getId)
         );
 
+        // Загрузка
+        PriorityQueue<Organization> loadedQueue = OrganizationXmlHandler.loadQueue("organizations.xml");
+        System.out.println("✅ Данные загружены, размер: " + loadedQueue.size());
+
+        //loadedQueue.forEach(System.out::println);
+
+        while (!loadedQueue.isEmpty()) {
+            Organization org = loadedQueue.poll();
+            queue.offer(org);
+        }
+
         Scanner scanner = new Scanner(System.in);
-        System.out.println("Введи команду, собака:");
         while (true) {
+            System.out.println("Введи команду, собака:");
             String cmd = scanner.nextLine();
-            String cmd_args[] = cmd.split(" ");
-            System.out.println("Текущая введенная команда - " + cmd);
-            switch (cmd) {
+            //такая дебильная обработка потому, что внутри аргументов команды может быть пробел
+            String[] cmd_args = new String[3];// = cmd.split(" ");
+            if(cmd.trim().contains(" ")) {
+                cmd_args[0] = cmd.substring(0, cmd.indexOf(" "));
+
+                cmd = cmd.substring(cmd.indexOf(" ") + 1);
+                if(cmd.startsWith("{")) cmd_args[1] = cmd;
+                else{
+                    if(cmd.contains(" ")) {
+                        cmd_args[1] = cmd.substring(0, cmd.indexOf(" "));
+                        cmd_args[2] = cmd.substring(cmd.indexOf(" ") + 1);
+                    }
+                    else {
+                        cmd_args[1] = cmd;
+                    }
+                }
+
+                System.out.println(Arrays.toString(cmd_args));
+
+                //cmd_args[1] = cmd.substring(cmd.indexOf(" ") + 1);
+            }
+            else {
+                cmd_args[0] = cmd.trim();
+            }
+            switch (cmd_args[0]) {
                 case "help" -> System.out.println("""
                         Доступные аргументы:
                         help - вывод справки по доступным командам
@@ -32,6 +63,8 @@ public class Collection {
                         exit - завершение программы (без сохранения в файл)
                         """);
                 case "info" -> {
+                    System.out.println("Вывод информации о коллекции");
+                    getInfo();
                 }
                 case "show" -> {
                     System.out.println("Вывод всех элементов коллекции");
@@ -39,43 +72,106 @@ public class Collection {
                 }
                 case "add" -> {
                     System.out.println("Добавление элемента в коллекцию");
-
-                    String elm = cmd_args[1].substring(1, args[1].length() - 1);   //убрал скобки
-                    System.out.println(elm);
-                    String[] elmArr = elm.split(";");
-                    System.out.println(Arrays.toString(elmArr));
-
-                    Organization org = null;
-
-                    if (elmArr.length != 5) {
-                            System.out.println("Неверный формат. Формат аргумента {наименование;координаты;годовой_оборот;тип;адрес}");
-                            continue;
-                    }
-                            //throw new IllegalArgumentException("Неверный формат. Формат аргумента {наименование;координаты;годовой_оборот;тип;адрес}");
                     try {
-                        org = new Organization(elmArr[0],       //имя
-                                elmArr[1],                      //координаты
-                                Float.parseFloat(elmArr[2]),    //годовой оборот
-                                elmArr[3],                      //тип
-                                elmArr[4]);                     //адрес
+                        if (cmd_args.length < 2 || !cmd_args[1].startsWith("{") || !cmd_args[1].endsWith("}") || !cmd_args[1].contains(";")){
+                            throw new IllegalArgumentException();
+                        }
+
+                        List<String> parts = parseAddCommand(cmd_args[1]);
+
+//                        System.out.println("Разделённые части:");
+//                        for (int i = 0; i < parts.size(); i++) {
+//                            System.out.println("[" + i + "] = " + parts.get(i));
+//                        }
+
+                        if (parts.toArray().length != 5) {
+                            throw new IllegalArgumentException();
+                        }
+                        Organization org = null;
+                        try {
+                            org = new Organization(parts.get(0),                            //имя
+                                    parts.get(1).substring(1, parts.get(1).length() - 1),   //координаты
+                                    Float.parseFloat(parts.get(2)),                         //годовой оборот
+                                    parts.get(3),                                           //тип
+                                    parts.get(4).substring(1, parts.get(4).length() - 1));  //адрес
+                        } catch (IllegalArgumentException e) {
+                            System.err.println("Ошибка: " + e.getMessage() + ". Повторите ввод.");
+                        }
+                        if (org != null && org.valid) {
+
+                                System.out.println(org);
+                                queue.offer(org); // или queue.add(org) — выбросит исключение при ошибке
+                                printQueue(queue);
+                        }
+
                     } catch (IllegalArgumentException e) {
-                        System.err.println("Ошибка: " + e.getMessage() + ". Повторите ввод.");
-                    } /*finally*/ {
-                        if (org != null) {
+                        System.out.println("Неверный формат. Формат аргумента {наименование;{x;y};годовой_оборот;тип;{адрес;индекс}}");
+                        continue;
+                    }
+                }
+                case "update" -> {
+                    System.out.println("Обновление элемента коллекции по идентификатору " + cmd_args[1]);
+                    try {
+                        if (cmd_args.length != 3) {
+                            throw new IllegalArgumentException();
+                        }
+
+                        long id = Long.parseLong(cmd_args[1].trim());
+                        queue.removeIf(org -> org.getId() == id);
+
+                        List<String> parts = parseAddCommand(cmd_args[2]);
+
+                        if (parts.toArray().length != 5) {
+                            throw new IllegalArgumentException();
+                        }
+                        Organization org = null;
+                        try {
+                            org = new Organization(parts.get(0),                            //имя
+                                    parts.get(1).substring(1, parts.get(1).length() - 1),   //координаты
+                                    Float.parseFloat(parts.get(2)),                         //годовой оборот
+                                    parts.get(3),                                           //тип
+                                    parts.get(4).substring(1, parts.get(4).length() - 1));  //адрес
+                            org.setId(id);
+                        } catch (IllegalArgumentException e) {
+                            System.err.println("Ошибка: " + e.getMessage() + ". Повторите ввод.");
+                        }
+                        if (org != null && org.valid) {
 
                             System.out.println(org);
                             queue.offer(org); // или queue.add(org) — выбросит исключение при ошибке
                             printQueue(queue);
                         }
                     }
-                }
-                case "update" -> {
+                    catch (IllegalArgumentException e) {
+                        System.out.println("Неверный формат");
+                        continue;
+                    }
                 }
                 case "remove_by_id" -> {
+                    System.out.println("Удаление элемента из коллекции по идентификатору " + cmd_args[1]);
+                    try {
+                        if (cmd_args.length < 2) {
+                            throw new IllegalArgumentException();
+                        }
+
+                        long id = Long.parseLong(cmd_args[1].trim());
+                        queue.removeIf(org -> org.getId() == id);
+                        getInfo();
+                    }
+                    catch (IllegalArgumentException e) {
+                        System.out.println("Неверный формат");
+                        continue;
+                    }
                 }
                 case "clear" -> {
+                    System.out.println("Очистка коллекции");
+                    queue.clear();
+                    getInfo();
                 }
                 case "save" -> {
+                    System.out.println("Сохранение коллекции в файл organizations.xml");
+                    OrganizationXmlHandler.saveQueue(queue, "organizations.xml");
+                    System.out.println("✅ Данные сохранены");
                 }
                 case "execute_script" -> {
                 }
@@ -84,6 +180,49 @@ public class Collection {
                 }
             }
         }
+    }
+
+    public static void getInfo() {
+        System.out.println("В коллекции " + queue.size() + " элемента(ов)");
+    }
+
+    public static List<String> parseAddCommand(String input) {
+        List<String> parts = new ArrayList<>();
+
+        String content = input.trim();
+        // Убираем внешние фигурные скобки
+        if (content.startsWith("{") && content.endsWith("}")) {
+            content = content.substring(1, content.length() - 1);
+        }
+
+        int depth = 0; // уровень вложенности {}
+        StringBuilder current = new StringBuilder();
+
+        for (char c : content.toCharArray()) {
+            if (c == '{') {
+                depth++;
+                current.append(c);
+            }
+            else if (c == '}') {
+                depth--;
+                current.append(c);
+            }
+            else if (c == ';' && depth == 0) {
+                // Разделяем только когда не внутри скобок
+                parts.add(current.toString().trim());
+                current = new StringBuilder();
+            }
+            else {
+                current.append(c);
+            }
+        }
+
+        // Добавляем последний блок
+        if (current.length() > 0) {
+            parts.add(current.toString().trim());
+        }
+
+        return parts;
     }
 
     public static void printQueue(PriorityQueue<Organization> queue) {
@@ -98,18 +237,16 @@ public class Collection {
         System.out.println("\n" + "=".repeat(80));
         System.out.printf("📋 Содержимое очереди (%d элементов) - в порядке приоритета:%n", queue.size());
         System.out.println("=".repeat(80));
-        System.out.printf("%-4s %-10s %-25s %-30s %-12s %-12s%n",
-                "№", "ID", "Название", "Тип", "Оборот", "Дата");
+        System.out.printf("%-10s %-25s %-30s %-12s %-12s%n",
+                "ID", "Название", "Тип", "Оборот", "Дата");
         System.out.println("-".repeat(80));
 
-        int index = 1;
         while (!tempQueue.isEmpty()) {
             Organization org = tempQueue.poll();
             // Форматируем тип: заменяем подчёркивания на пробелы и делаем читаемым
             String readableType = org.getType().name();
 
-            System.out.printf("%-4d %-10d %-25s %-30s %,12.2f %-12s%n",
-                    index++,
+            System.out.printf("%-10d %-25s %-30s %,12.2f %-12s%n",
                     org.getId(),
                     org.getName(),
                     readableType,

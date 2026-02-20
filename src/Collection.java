@@ -1,3 +1,6 @@
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
 
 public class Collection {
@@ -9,8 +12,11 @@ public class Collection {
                 Comparator.comparingLong(Organization::getId)
         );
 
+        String xmlFilename = System.getenv("XML_FILENAME");
+        System.out.println(xmlFilename);
+
         // Загрузка
-        PriorityQueue<Organization> loadedQueue = OrganizationXmlHandler.loadQueue("organizations.xml");
+        PriorityQueue<Organization> loadedQueue = OrganizationXmlHandler.loadQueue(/*"organizations.xml"*/xmlFilename);
         System.out.println("✅ Данные загружены, размер: " + loadedQueue.size());
 
         //loadedQueue.forEach(System.out::println);
@@ -19,7 +25,7 @@ public class Collection {
             Organization org = loadedQueue.poll();
             queue.offer(org);
         }
-
+        String[] script_cmds;
         Scanner scanner = new Scanner(System.in);
         while (true) {
             System.out.println("Введи команду, собака:");
@@ -170,16 +176,35 @@ public class Collection {
                 }
                 case "save" -> {
                     System.out.println("Сохранение коллекции в файл organizations.xml");
-                    OrganizationXmlHandler.saveQueue(queue, "organizations.xml");
+                    OrganizationXmlHandler.saveQueue(queue, /*"organizations.xml"*/xmlFilename);
                     System.out.println("✅ Данные сохранены");
                 }
                 case "execute_script" -> {
+                    System.out.println("Выполнение скрипта из файла " + cmd_args[1]);
+                    try {
+                        if (cmd_args.length < 2) {
+                            throw new IllegalArgumentException();
+                        }
+                        script_cmds = loadLinesModern(cmd_args[1]);
+                        for (String script_cmd : script_cmds) {
+                            System.out.println(script_cmd);
+                        }
+                    }
+                    catch (IllegalArgumentException e) {
+                        System.out.println("Неверный формат");
+                        continue;
+                    }
                 }
                 case "exit" -> {
                     return;
                 }
             }
         }
+    }
+
+    public static String[] loadLinesModern(String filename) throws Exception {
+        List<String> lines = Files.readAllLines(Paths.get(filename), StandardCharsets.UTF_8);
+        return lines.toArray(new String[0]);
     }
 
     public static void getInfo() {

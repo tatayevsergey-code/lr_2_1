@@ -4,65 +4,100 @@ import javax.xml.transform.*;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.PriorityQueue;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class OrganizationXmlHandler {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE;
-
     /**
      * Сохранение очереди в XML-файл
      */
     public static void saveQueue(PriorityQueue<Organization> queue, String filename) throws Exception {
-        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-        DocumentBuilder builder = factory.newDocumentBuilder();
-        Document doc = builder.newDocument();
+        try (OutputStreamWriter writer = new OutputStreamWriter(
+                new FileOutputStream(filename), StandardCharsets.UTF_8);
+             BufferedWriter bufferedWriter = new BufferedWriter(writer)) {
 
-        Element root = doc.createElement("organizations");
-        doc.appendChild(root);
+            // XML Declaration
+            bufferedWriter.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+            bufferedWriter.newLine();
 
-        for (Organization org : queue) {
-            Element orgElement = doc.createElement("organization");
+            // Root element
+            bufferedWriter.write("<organizations>");
+            bufferedWriter.newLine();
 
-            //appendElement(doc, orgElement, "id", String.valueOf(org.getId()));
-            appendElement(doc, orgElement, "name", org.getName());
+            for (Organization org : queue) {
+                bufferedWriter.write("  <organization>");
+                bufferedWriter.newLine();
 
-            // Coordinates
-            Element coordsElement = doc.createElement("coordinates");
-            appendElement(doc, coordsElement, "x", String.valueOf(org.getCoordinates().getX()));
-            appendElement(doc, coordsElement, "y", String.valueOf(org.getCoordinates().getY()));
-            orgElement.appendChild(coordsElement);
+                // ID
+                writeTag(bufferedWriter, "id", String.valueOf(org.getId()), 4);
 
-            // CreationDate
-            appendElement(doc, orgElement, "creationDate",
-                    org.getCreationDate() != null ? org.getCreationDate().format(DATE_FORMATTER) : "");
+                // Name
+                writeTag(bufferedWriter, "name", escapeXml(org.getName()), 4);
 
-            // AnnualTurnover
-            appendElement(doc, orgElement, "annualTurnover", String.valueOf(org.getAnnualTurnover()));
+                // Coordinates
+                bufferedWriter.write("    <coordinates>");
+                bufferedWriter.newLine();
+                writeTag(bufferedWriter, "x", String.valueOf(org.getCoordinates().getX()), 6);
+                writeTag(bufferedWriter, "y", String.valueOf(org.getCoordinates().getY()), 6);
+                bufferedWriter.write("    </coordinates>");
+                bufferedWriter.newLine();
 
-            // Type
-            appendElement(doc, orgElement, "type", org.getType() != null ? org.getType().name() : "");
+                // CreationDate
+                String dateStr = org.getCreationDate() != null
+                        ? org.getCreationDate().format(DATE_FORMATTER)
+                        : "";
+                writeTag(bufferedWriter, "creationDate", dateStr, 4);
 
-            // Address
-            Element addressElement = doc.createElement("officialAddress");
-            appendElement(doc, addressElement, "street", org.getOfficialAddress().getStreet());
-            appendElement(doc, addressElement, "zipCode", org.getOfficialAddress().getZipCode());
-            orgElement.appendChild(addressElement);
+                // AnnualTurnover
+                writeTag(bufferedWriter, "annualTurnover", String.valueOf(org.getAnnualTurnover()), 4);
 
-            root.appendChild(orgElement);
+                // Type
+                writeTag(bufferedWriter, "type", org.getType() != null ? org.getType().name() : "", 4);
+
+                // Address
+                bufferedWriter.write("    <officialAddress>");
+                bufferedWriter.newLine();
+                writeTag(bufferedWriter, "street", escapeXml(org.getOfficialAddress().getStreet()), 6);
+                writeTag(bufferedWriter, "zipCode", escapeXml(org.getOfficialAddress().getZipCode()), 6);
+                bufferedWriter.write("    </officialAddress>");
+                bufferedWriter.newLine();
+
+                bufferedWriter.write("  </organization>");
+                bufferedWriter.newLine();
+            }
+
+            bufferedWriter.write("</organizations>");
+            bufferedWriter.newLine();
         }
+    }
 
-        // Запись в файл
-        TransformerFactory transformerFactory = TransformerFactory.newInstance();
-        Transformer transformer = transformerFactory.newTransformer();
-        transformer.setOutputProperty(OutputKeys.INDENT, "yes");
-        transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
+    // Запись отдельного тега с отступом
+    private static void writeTag(BufferedWriter writer, String tagName, String value, int indent) throws IOException {
+        writer.write(" ".repeat(indent));
+        writer.write("<");
+        writer.write(tagName);
+        writer.write(">");
+        writer.write(value != null ? value : "");
+        writer.write("</");
+        writer.write(tagName);
+        writer.write(">");
+        writer.newLine();
+    }
 
-        try (FileWriter writer = new FileWriter(filename)) {
-            transformer.transform(new DOMSource(doc), new StreamResult(writer));
-        }
+    // Кодирование XML-спецсимволов
+    private static String escapeXml(String str) {
+        if (str == null) return "";
+        return str.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&apos;");
     }
 
     /**
@@ -78,60 +113,93 @@ public class OrganizationXmlHandler {
             return queue;
         }
 
-        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-        DocumentBuilder builder = factory.newDocumentBuilder();
-        Document doc = builder.parse(file);
-        doc.getDocumentElement().normalize();
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
 
-        NodeList orgList = doc.getElementsByTagName("organization");
+            StringBuilder xmlContent = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                xmlContent.append(line);
+            }
 
-        for (int i = 0; i < orgList.getLength(); i++) {
-            Element orgElement = (Element) orgList.item(i);
+            String xml = xmlContent.toString();
 
-            //long id = Long.parseLong(getElementValue(orgElement, "id"));
-            String name = getElementValue(orgElement, "name");
-            float annualTurnover = Float.parseFloat(getElementValue(orgElement, "annualTurnover"));
-            String typeName = getElementValue(orgElement, "type");
-            OrganizationType type = OrganizationType.valueOf(typeName);
+            // Поиск всех блоков <organization>...</organization>
+            Pattern orgPattern = Pattern.compile("<organization>(.*?)</organization>", Pattern.DOTALL);
+            Matcher orgMatcher = orgPattern.matcher(xml);
 
-            // Coordinates
-            Element coordsElement = (Element) orgElement.getElementsByTagName("coordinates").item(0);
-            long x = Long.parseLong(getElementValue(coordsElement, "x"));
-            long y = Long.parseLong(getElementValue(coordsElement, "y"));
-            Coordinates coordinates = new Coordinates(x, y);
+            while (orgMatcher.find()) {
+                String orgBlock = orgMatcher.group(1);
 
-            // CreationDate
-            String dateStr = getElementValue(orgElement, "creationDate");
-            LocalDate creationDate = (dateStr != null && !dateStr.isEmpty())
-                    ? LocalDate.parse(dateStr, DATE_FORMATTER)
-                    : LocalDate.now();
+                try {
+                    long id = Long.parseLong(getTagValue(orgBlock, "id"));
+                    String name = unescapeXml(getTagValue(orgBlock, "name"));
+                    float annualTurnover = Float.parseFloat(getTagValue(orgBlock, "annualTurnover"));
+                    String typeName = getTagValue(orgBlock, "type");
+                    OrganizationType type = OrganizationType.valueOf(typeName);
 
-            // Address
-            Element addressElement = (Element) orgElement.getElementsByTagName("officialAddress").item(0);
-            String street = getElementValue(addressElement, "street");
-            String zipCode = getElementValue(addressElement, "zipCode");
-            Address officialAddress = new Address(street, zipCode);
+                    // Coordinates
+                    String coordsBlock = getTagContent(orgBlock, "coordinates");
+                    long x = Long.parseLong(getTagValue(coordsBlock, "x"));
+                    long y = Long.parseLong(getTagValue(coordsBlock, "y"));
+                    Coordinates coordinates = new Coordinates(x, y);
 
-            // Создание организации
-            Organization org = new Organization( name, coordinates, creationDate,
-                    annualTurnover, type, officialAddress);
-            queue.add(org);
+                    // CreationDate
+                    String dateStr = getTagValue(orgBlock, "creationDate");
+                    LocalDate creationDate = (dateStr != null && !dateStr.isEmpty())
+                            ? LocalDate.parse(dateStr, DATE_FORMATTER)
+                            : LocalDate.now();
+
+                    // Address
+                    String addressBlock = getTagContent(orgBlock, "officialAddress");
+                    String street = unescapeXml(getTagValue(addressBlock, "street"));
+                    String zipCode = unescapeXml(getTagValue(addressBlock, "zipCode"));
+                    Address officialAddress = new Address(street, zipCode);
+
+                    Organization org = new Organization(name, coordinates, creationDate,
+                            annualTurnover, type, officialAddress);
+                    org.setId(id);
+                    queue.add(org);
+
+                } catch (Exception e) {
+                    System.err.println("Ошибка парсинга организации: " + e.getMessage());
+                }
+            }
         }
 
         return queue;
     }
 
-    private static void appendElement(Document doc, Element parent, String tagName, String value) {
-        Element element = doc.createElement(tagName);
-        element.setTextContent(value != null ? value : "");
-        parent.appendChild(element);
-    }
-
-    private static String getElementValue(Element parent, String tagName) {
-        NodeList list = parent.getElementsByTagName(tagName);
-        if (list.getLength() > 0) {
-            return list.item(0).getTextContent();
+    // Получить содержимое тега (например, <id>123</id> -> "123")
+    private static String getTagValue(String xml, String tagName) {
+        String regex = "<" + tagName + ">(.*?)</" + tagName + ">";
+        Pattern pattern = Pattern.compile(regex, Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(xml);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
         }
         return "";
     }
+
+    // Получить содержимое блока с вложенными тегами
+    private static String getTagContent(String xml, String tagName) {
+        String regex = "<" + tagName + ">(.*?)</" + tagName + ">";
+        Pattern pattern = Pattern.compile(regex, Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(xml);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return "";
+    }
+
+    // Декодирование XML-спецсимволов
+    private static String unescapeXml(String str) {
+        if (str == null) return "";
+        return str.replace("&amp;", "&")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&quot;", "\"")
+                .replace("&apos;", "'");
+    }
+
 }

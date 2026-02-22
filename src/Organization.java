@@ -1,5 +1,6 @@
 import java.time.LocalDate;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -61,12 +62,36 @@ public class Organization {
         this.type = type;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        Organization that = (Organization) o;
+        return Float.compare(annualTurnover, that.annualTurnover) == 0 && valid == that.valid && Objects.equals(name, that.name) && Objects.equals(coordinates, that.coordinates) && Objects.equals(creationDate, that.creationDate) && type == that.type && Objects.equals(officialAddress, that.officialAddress);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, coordinates, creationDate, annualTurnover, type, officialAddress, valid);
+    }
+
     public Address getOfficialAddress() {
         return officialAddress;
     }
 
     public void setOfficialAddress(Address officialAddress) {
         this.officialAddress = officialAddress;
+    }
+
+    /**
+     * Сравнивает организации по бизнес-свойствам (исключая авто-генерируемый ID).
+     */
+    public boolean hasSamePropertiesAs(Organization other) {
+        if (other == null) return false;
+        return Objects.equals(this.name, other.name) &&
+                Objects.equals(this.coordinates, other.coordinates) &&
+                Float.compare(this.annualTurnover, other.annualTurnover) == 0 &&
+                this.type == other.type &&
+                Objects.equals(this.officialAddress, other.officialAddress);
     }
 
     // Конструктор для загрузки из XML
@@ -115,7 +140,7 @@ public class Organization {
         //координаты
         String[] xy = coordinates.split(";");
         long x = Long.parseLong(xy[0]);
-        long y = Long.parseLong(xy[0]);
+        long y = Long.parseLong(xy[1]);
         this.coordinates = new Coordinates(x, y);
         //годовой оборот
         this.annualTurnover = annualTurnover;

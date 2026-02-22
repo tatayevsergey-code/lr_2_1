@@ -11,6 +11,7 @@ public class Collection {
         queue = new PriorityQueue<>(
                 Comparator.comparingLong(Organization::getId)
         );
+        CommandHistory commandHistory = new CommandHistory(6); // ← История команд
 
         String xmlFilename = System.getenv("XML_FILENAME");
         //System.out.println(xmlFilename);
@@ -41,6 +42,7 @@ public class Collection {
             }
             else {
                 cmd = scanner.nextLine();
+                commandHistory.add(cmd); // ← Сохраняем команду
             }
             //такая дебильная обработка потому, что внутри аргументов команды может быть пробел
             String[] cmd_args = new String[3];// = cmd.split(" ");
@@ -200,6 +202,79 @@ public class Collection {
                     }
                     else {
                         System.out.println("Имя файла для хранения данных не задано. Данные не сохранены");
+                    }
+                }
+                case "remove_head" -> {
+                    System.out.println("Вывод и удаление первого элемента коллекции");
+                    Organization org = queue.poll();
+                    System.out.println(org);
+                    getInfo();
+                }
+                case "remove_greater" -> {
+                    System.out.println("Удаление из коллекции всех элементов превышающих заданный " + cmd_args[1]);
+                    try {
+                        if (cmd_args.length < 2 || !cmd_args[1].startsWith("{") || !cmd_args[1].endsWith("}") || !cmd_args[1].contains(";")){
+                            throw new IllegalArgumentException();
+                        }
+
+                        List<String> parts = parseAddCommand(cmd_args[1]);
+
+                        if (parts.toArray().length != 5) {
+                            throw new IllegalArgumentException();
+                        }
+                        Organization org = null;
+                        try {
+                            org = new Organization(parts.get(0),                            //имя
+                                    parts.get(1).substring(1, parts.get(1).length() - 1),   //координаты
+                                    Float.parseFloat(parts.get(2)),                         //годовой оборот
+                                    parts.get(3),                                           //тип
+                                    parts.get(4).substring(1, parts.get(4).length() - 1));  //адрес
+                        } catch (IllegalArgumentException e) {
+                            System.err.println("Ошибка: " + e.getMessage() + ". Повторите ввод.");
+                        }
+                        if (org != null && org.valid) {
+
+                            // 🔍 Ищем организацию в очереди с такими же свойствами
+                            Long thresholdId = null;
+                            for (Organization existing : queue) {
+                                //if (org.equals(existing)) {
+                                if (org.hasSamePropertiesAs(existing)) {
+                                    thresholdId = existing.getId();
+                                    break;
+                                }
+                            }
+
+                            if (thresholdId == null) {
+                                System.out.println("⚠️ Организация с такими свойствами не найдена в коллекции. Ничего не удалено.");
+                            } else {
+                                // 🗑️ Удаляем все элементы с ID > thresholdId
+                                Iterator<Organization> iterator = queue.iterator();
+                                int removedCount = 0;
+                                while (iterator.hasNext()) {
+                                    if (iterator.next().getId() > thresholdId) {
+                                        iterator.remove();
+                                        removedCount++;
+                                    }
+                                }
+                                System.out.println("✅ Удалено элементов: " + removedCount);
+                            }
+
+                            printQueue(queue,false,false);
+                        }
+
+                    } catch (IllegalArgumentException e) {
+                        System.out.println("Неверный формат. Формат аргумента {наименование;{x;y};годовой_оборот;тип;{адрес;индекс}}");
+                    }
+                }
+                case "history" -> {
+                    System.out.println("Вывод последних 6 команд");
+                    List<String> history = commandHistory.getHistory();
+                    if (history.isEmpty()) {
+                        System.out.println("  (пусто)");
+                    } else {
+                        for (int i = 0; i < history.size(); i++) {
+                            System.out.printf("  %d. %s%n", i + 1, history.get(i));
+                        }
                     }
                 }
                 case "execute_script" -> {

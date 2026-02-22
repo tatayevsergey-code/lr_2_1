@@ -13,23 +13,35 @@ public class Collection {
         );
 
         String xmlFilename = System.getenv("XML_FILENAME");
-        System.out.println(xmlFilename);
+        //System.out.println(xmlFilename);
 
         // Загрузка
-        PriorityQueue<Organization> loadedQueue = OrganizationXmlHandler.loadQueue(/*"organizations.xml"*/xmlFilename);
-        System.out.println("✅ Данные загружены, размер: " + loadedQueue.size());
+        if(xmlFilename != null && !xmlFilename.isEmpty()) {
+            PriorityQueue<Organization> loadedQueue = OrganizationXmlHandler.loadQueue(/*"organizations.xml"*/xmlFilename);
+            System.out.println("✅ Данные загружены, размер: " + loadedQueue.size());
 
+            while (!loadedQueue.isEmpty()) {
+                Organization org = loadedQueue.poll();
+                queue.offer(org);
+            }
+        }
+        else{
+            System.out.println("Имя файла для хранения данных не задано. Данные не загружены");
+        }
         //loadedQueue.forEach(System.out::println);
 
-        while (!loadedQueue.isEmpty()) {
-            Organization org = loadedQueue.poll();
-            queue.offer(org);
-        }
-        String[] script_cmds;
+        List<String> script_cmds = null;
         Scanner scanner = new Scanner(System.in);
         while (true) {
             System.out.println("Введи команду, собака:");
-            String cmd = scanner.nextLine();
+            String cmd = "";
+            if(script_cmds != null && !script_cmds.isEmpty()){
+                cmd = script_cmds.getFirst();
+                script_cmds.removeFirst();
+            }
+            else {
+                cmd = scanner.nextLine();
+            }
             //такая дебильная обработка потому, что внутри аргументов команды может быть пробел
             String[] cmd_args = new String[3];// = cmd.split(" ");
             if(cmd.trim().contains(" ")) {
@@ -47,7 +59,7 @@ public class Collection {
                     }
                 }
 
-                System.out.println(Arrays.toString(cmd_args));
+                //System.out.println(Arrays.toString(cmd_args));
 
                 //cmd_args[1] = cmd.substring(cmd.indexOf(" ") + 1);
             }
@@ -66,6 +78,12 @@ public class Collection {
                         clear - очистка коллекции
                         save - сохранение коллекции в файл
                         execute_script file_name - считать и исполнить скрипт из указанного файла. В скрипте содержатся команды в таком же виде, в котором их вводит пользователь в интерактивном режиме.
+                        remove_head - вывести первый элемент коллекции и удалить его
+                        remove_greater {элемент} - удалить из коллекции все элементы превышающие заданный
+                        history - вывести последние 6 команд
+                        remove_any_by_official_address officialAddress - удалить из коллекции один элемент, значение поля officialAddress которого эквивалентно заданному
+                        print_descending - вывести элементы коллекции в порядке убывания
+                        print_field_descending_type - вывести значения поля type всех элементов в порядке убывания 
                         exit - завершение программы (без сохранения в файл)
                         """);
                 case "info" -> {
@@ -74,7 +92,7 @@ public class Collection {
                 }
                 case "show" -> {
                     System.out.println("Вывод всех элементов коллекции");
-                    printQueue(queue);
+                    printQueue(queue,false,false);
                 }
                 case "add" -> {
                     System.out.println("Добавление элемента в коллекцию");
@@ -107,7 +125,7 @@ public class Collection {
 
                                 System.out.println(org);
                                 queue.offer(org); // или queue.add(org) — выбросит исключение при ошибке
-                                printQueue(queue);
+                                printQueue(queue,false,false);
                         }
 
                     } catch (IllegalArgumentException e) {
@@ -145,7 +163,7 @@ public class Collection {
 
                             System.out.println(org);
                             queue.offer(org); // или queue.add(org) — выбросит исключение при ошибке
-                            printQueue(queue);
+                            printQueue(queue,false,false);
                         }
                     }
                     catch (IllegalArgumentException e) {
@@ -175,9 +193,14 @@ public class Collection {
                     getInfo();
                 }
                 case "save" -> {
-                    System.out.println("Сохранение коллекции в файл organizations.xml");
-                    OrganizationXmlHandler.saveQueue(queue, /*"organizations.xml"*/xmlFilename);
-                    System.out.println("✅ Данные сохранены");
+                    if(xmlFilename != null && !xmlFilename.isEmpty()) {
+                        System.out.println("Сохранение коллекции в файл organizations.xml");
+                        OrganizationXmlHandler.saveQueue(queue, /*"organizations.xml"*/xmlFilename);
+                        System.out.println("✅ Данные сохранены");
+                    }
+                    else {
+                        System.out.println("Имя файла для хранения данных не задано. Данные не сохранены");
+                    }
                 }
                 case "execute_script" -> {
                     System.out.println("Выполнение скрипта из файла " + cmd_args[1]);
@@ -186,25 +209,40 @@ public class Collection {
                             throw new IllegalArgumentException();
                         }
                         script_cmds = loadLinesModern(cmd_args[1]);
-                        for (String script_cmd : script_cmds) {
-                            System.out.println(script_cmd);
-                        }
+//                        for (String script_cmd : script_cmds) {
+//                            System.out.println(script_cmd);
+//                        }
                     }
                     catch (IllegalArgumentException e) {
                         System.out.println("Неверный формат");
                         continue;
                     }
                 }
+                case "print_descending" -> {
+                    System.out.println("Вывод элементов коллекции в порядке убывания");
+                    printQueue(queue,true,false);
+//                    List<Organization> list = new ArrayList<>(queue);
+//                    list.sort(Comparator.comparingLong(Organization::getId).reversed());
+//
+//                    for (Organization org : list) {
+//                        System.out.println(org);
+//                    }
+                }
+                case "print_field_descending_type"  -> {
+                    System.out.println("Вывод значений поля type всех элементов в порядке убывания");
+                    printQueue(queue,true,true);
+                }
                 case "exit" -> {
+                    System.out.println("Завершение программы");
                     return;
                 }
             }
         }
     }
 
-    public static String[] loadLinesModern(String filename) throws Exception {
+    public static List<String> loadLinesModern(String filename) throws Exception {
         List<String> lines = Files.readAllLines(Paths.get(filename), StandardCharsets.UTF_8);
-        return lines.toArray(new String[0]);
+        return lines;
     }
 
     public static void getInfo() {
@@ -250,35 +288,68 @@ public class Collection {
         return parts;
     }
 
-    public static void printQueue(PriorityQueue<Organization> queue) {
+    public static void printQueue(PriorityQueue<Organization> queue,boolean reverse,boolean type_only) {
         if (queue == null || queue.isEmpty()) {
             System.out.println("📭 Очередь пуста.");
             return;
         }
 
         // Создаём временную копию для безопасного извлечения
-        PriorityQueue<Organization> tempQueue = new PriorityQueue<>(queue);
-
-        System.out.println("\n" + "=".repeat(80));
-        System.out.printf("📋 Содержимое очереди (%d элементов) - в порядке приоритета:%n", queue.size());
-        System.out.println("=".repeat(80));
-        System.out.printf("%-10s %-25s %-30s %-12s %-12s%n",
-                "ID", "Название", "Тип", "Оборот", "Дата");
-        System.out.println("-".repeat(80));
-
-        while (!tempQueue.isEmpty()) {
-            Organization org = tempQueue.poll();
-            // Форматируем тип: заменяем подчёркивания на пробелы и делаем читаемым
-            String readableType = org.getType().name();
-
-            System.out.printf("%-10d %-25s %-30s %,12.2f %-12s%n",
-                    org.getId(),
-                    org.getName(),
-                    readableType,
-                    org.getAnnualTurnover(),
-                    org.getCreationDate());
+        PriorityQueue<Organization> tempQueue = null;
+        if(!reverse) {
+            tempQueue = new PriorityQueue<>(queue);
         }
-        System.out.println("=".repeat(80) + "\n");
+        else {
+            tempQueue = new PriorityQueue<>(
+                    queue.size(),
+                    Comparator.comparingLong(Organization::getId).reversed()
+            );
+            tempQueue.addAll(queue);
+        }
+
+        if(!type_only) {
+            System.out.println("\n" + "=".repeat(150));
+            System.out.printf("📋 Содержимое очереди (%d элементов) - в порядке приоритета:%n", queue.size());
+            System.out.println("=".repeat(150));
+            System.out.printf("%-5s %-20s %-30s %-10s %-12s %-12s %-12s%n",
+                    "ID", "Название", "Тип", "Оборот", "Дата", "Координаты", "Адрес");
+            System.out.println("-".repeat(150));
+
+            while (!tempQueue.isEmpty()) {
+                Organization org = tempQueue.poll();
+                // Форматируем тип: заменяем подчёркивания на пробелы и делаем читаемым
+                String readableType = org.getType().name();
+
+                System.out.printf("%-5d %-20s %-30s %,12.2f %-12s %-12s %-12s%n",
+                        org.getId(),
+                        org.getName(),
+                        readableType,
+                        org.getAnnualTurnover(),
+                        org.getCreationDate(),
+                        org.getCoordinates().toString(),
+                        org.getOfficialAddress().toString());
+            }
+            System.out.println("=".repeat(150) + "\n");
+        }
+        else {
+            System.out.println("\n" + "=".repeat(40));
+            System.out.printf("📋 Содержимое очереди (%d элементов) - в порядке приоритета:%n", queue.size());
+            System.out.println("=".repeat(40));
+            System.out.printf("%-5s %-30s%n",
+                    "ID", "Тип");
+            System.out.println("-".repeat(40));
+
+            while (!tempQueue.isEmpty()) {
+                Organization org = tempQueue.poll();
+                // Форматируем тип: заменяем подчёркивания на пробелы и делаем читаемым
+                String readableType = org.getType().name();
+
+                System.out.printf("%-5d %-30ss%n",
+                        org.getId(),
+                        readableType);
+            }
+            System.out.println("=".repeat(40) + "\n");
+        }
     }
 
 }

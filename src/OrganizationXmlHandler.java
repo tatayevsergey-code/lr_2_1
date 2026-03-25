@@ -17,7 +17,11 @@ public class OrganizationXmlHandler {
     /**
      * Сохранение очереди в XML-файл
      */
-    public static void saveQueue(PriorityQueue<Organization> queue, String filename) throws Exception {
+    public static <T extends Collectible<T>> void saveQueue(PriorityQueue<T> queue, String filename) throws Exception {
+        // Приведение для работы с Organization-specific полями
+        @SuppressWarnings("unchecked")
+        PriorityQueue<Organization> orgQueue = (PriorityQueue<Organization>) queue;
+
         try (OutputStreamWriter writer = new OutputStreamWriter(
                 new FileOutputStream(filename), StandardCharsets.UTF_8);
              BufferedWriter bufferedWriter = new BufferedWriter(writer)) {
@@ -30,7 +34,7 @@ public class OrganizationXmlHandler {
             bufferedWriter.write("<organizations>");
             bufferedWriter.newLine();
 
-            for (Organization org : queue) {
+            for (Organization org : orgQueue) {
                 bufferedWriter.write("  <organization>");
                 bufferedWriter.newLine();
 
@@ -104,6 +108,7 @@ public class OrganizationXmlHandler {
      * Загрузка очереди из XML-файла
      */
     public static PriorityQueue<Organization> loadQueue(String filename) throws Exception {
+        // Этот метод остаётся без изменений - он всегда возвращает Organization
         PriorityQueue<Organization> queue = new PriorityQueue<>(
                 java.util.Comparator.comparingLong(Organization::getId)
         );

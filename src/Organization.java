@@ -4,7 +4,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class Organization {
+public class Organization implements Collectible<Organization> {
 
     private static final AtomicLong ID_COUNTER = new AtomicLong(1);
 
@@ -186,5 +186,10 @@ public class Organization {
                 ", type=" + type +
                 ", officialAddress=" + officialAddress +
                 '}';
+    }
+
+    @Override
+    public int compareTo(Organization other) {
+        return Long.compare(this.id, other.id);
     }
 }
